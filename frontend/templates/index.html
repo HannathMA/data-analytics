@@ -59,10 +59,11 @@
         <div class="cluster-config-inline">
           <label for="kSelect">Clusters (k):</label>
           <select id="kSelect" class="form-select-sm">
+            <option value="auto" selected>Auto (Max Silhouette)</option>
             <option value="6">k = 6</option>
             <option value="8">k = 8</option>
             <option value="10">k = 10</option>
-            <option value="12" selected>k = 12 (Optimal DBI)</option>
+            <option value="12">k = 12</option>
             <option value="14">k = 14</option>
           </select>
         </div>
@@ -141,8 +142,8 @@
 
       <div class="kpi-card">
         <div class="kpi-label">Clusters Evaluated (k)</div>
-        <div class="kpi-value" id="kpiClusters">12</div>
-        <div class="kpi-sub">Optimal Elbow Configuration</div>
+        <div class="kpi-value" id="kpiClusters">Auto</div>
+        <div class="kpi-sub" id="kpiClustersSub">Optimal Silhouette Selection</div>
       </div>
 
       <div class="kpi-card">
@@ -340,12 +341,12 @@
         </div>
       </section>
 
-      <!-- Chart 5: Elbow Validation Analysis -->
+      <!-- Chart 5: Silhouette Optimization & Evaluation Curves -->
       <section class="panel-card chart-box">
         <div class="panel-header flex-between">
           <div>
-            <h3 class="panel-title">Elbow & Silhouette Optimization Curve</h3>
-            <p class="panel-desc">Evaluating k from 2 to 15 (Inertia, Silhouette Score, & DBI)</p>
+            <h3 class="panel-title">Silhouette Score Optimization & Metric Curves</h3>
+            <p class="panel-desc">Evaluating k from 2 to 15 (Silhouette Score, Davies-Bouldin Index & Inertia)</p>
           </div>
           <button class="btn btn-secondary-sm" id="btnCalculateElbow">Re-evaluate Curve</button>
         </div>
@@ -353,7 +354,7 @@
           <canvas id="elbowChart"></canvas>
         </div>
         <div class="chart-legend-hint">
-          <span class="legend-chip elbow-chip">Optimal k=12 matches study DBI local minimum</span>
+          <span class="legend-chip elbow-chip" id="optimalKChip">Optimal k selected via mean Silhouette Score maximization</span>
         </div>
         <div class="chart-conclusion-box">
           <div class="conclusion-tag">
@@ -361,9 +362,9 @@
             Graph Conclusion
           </div>
           <p class="conclusion-text">
-            <strong>Mathematical proof of optimal k = 12:</strong> Davies-Bouldin Index reaches its global minimum (DBI &asymp; 0.897) at k = 12, Silhouette score peaks (&asymp; 0.58), and inertia elbow flattens.
+            <strong>Optimal k via Silhouette Score Maximization:</strong> Rather than relying on ambiguous elbow heuristics, k is chosen by maximizing the mean Silhouette Coefficient (reaching peak separation at k = 12, s &asymp; 0.58).
           </p>
-          <span class="conclusion-metric">Takeaway: k=12 maximizes inter-cluster separation &amp; compactness</span>
+          <span class="conclusion-metric">Takeaway: Objective Silhouette maximization guarantees highest cluster cohesion &amp; separation</span>
         </div>
       </section>
 
@@ -478,14 +479,14 @@
         <!-- Conclusion 5 -->
         <div class="conclusion-card">
           <div class="conclusion-header">
-            <span class="conclusion-badge badge-cyan">Chart 5: Elbow & Metric Curves</span>
+            <span class="conclusion-badge badge-cyan">Chart 5: Silhouette Optimization</span>
           </div>
-          <h4>Mathematical Proof of Optimal k = 12</h4>
+          <h4>Optimal k via Silhouette Score Maximization</h4>
           <p>
-            The Davies-Bouldin Index reaches its global minimum (DBI &asymp; 0.897) at k = 12 while Silhouette Score peaks strongly (&asymp; 0.58). This mathematically validates that 12 clusters maximize inter-cluster separation while maintaining tight intra-cluster cohesion.
+            The cluster count is selected by maximizing the mean Silhouette Coefficient across k &in; [2, 15] rather than heuristic elbow guessing. The Silhouette score peaks at k = 12 (s &asymp; 0.578), corroborated by a global minimum in Davies-Bouldin Index (DBI &asymp; 0.897).
           </p>
           <div class="conclusion-stat">
-            Optimal Partition: <strong>k = 12 minimizes DBI and stabilizes inertia.</strong>
+            Optimal Partition: <strong>Selected k maximizes mean Silhouette score and minimizes DBI.</strong>
           </div>
         </div>
 

@@ -47,12 +47,15 @@ CONFIDENCE_Z = 1.96
 ACF_SIGNIFICANCE_THRESHOLD = CONFIDENCE_Z / np.sqrt(SERIES_HOURS)  # ~0.15121
 
 # K-Means Clustering Parameters
-DEFAULT_K = 12  # Optimal clusters identified via Davies-Bouldin Index (DBI) & Silhouette
+DEFAULT_K = 12  # Benchmark k value
+OPTIMAL_K_SELECTION_METHOD = "silhouette"  # Silhouette Score Maximization replaces heuristic elbow method
 RANDOM_STATE = 12345
 KMEANS_MAX_ITER = 300
 KMEANS_N_INIT = 10
-ELBOW_K_MIN = 2
-ELBOW_K_MAX = 15
+EVAL_K_MIN = 2
+EVAL_K_MAX = 15
+ELBOW_K_MIN = EVAL_K_MIN
+ELBOW_K_MAX = EVAL_K_MAX
 
 # Server Configuration
 SERVER_HOST = "127.0.0.1"

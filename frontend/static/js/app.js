@@ -251,7 +251,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function runClustering() {
-    const k = parseInt(kSelect.value, 10);
+    const rawVal = kSelect.value;
+    const kPayload = rawVal === 'auto' ? 'auto' : parseInt(rawVal, 10);
     btnRunClustering.disabled = true;
     btnRunClustering.textContent = 'Clustering...';
 
@@ -259,12 +260,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch('/api/run_clustering', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ k: k, max_lag: 24 })
+        body: JSON.stringify({ k: kPayload, max_lag: 24 })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Clustering failed');
 
-      updateKPIs(data.metrics);
+      const activeK = data.metrics.n_clusters;
+      updateKPIs(data.metrics, rawVal === 'auto');
       renderClusterCatalog(data.cluster_profiles);
       setupCentroidFilterButtons(data.cluster_profiles);
 
@@ -277,7 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const fullData = await fullRes.json();
 
       if (fullData.assignments) {
-        window.dashboardCharts.renderPca(fullData.assignments, k);
+        window.dashboardCharts.renderPca(fullData.assignments, activeK);
         populateMeterSelect(fullData.assignments);
       }
 
@@ -287,10 +289,10 @@ document.addEventListener('DOMContentLoaded', () => {
         pcaVarianceLabel.textContent = `Explained Variance: PC1 (${pc1}%) | PC2 (${pc2}%)`;
       }
 
-      // Load elbow analysis in background
+      // Load elbow / evaluation analysis in background
       loadElbowData();
 
-      showToast(`K-Means clustering complete (${k} behavioral clusters).`, 'success');
+      showToast(`K-Means clustering complete (${activeK} clusters${rawVal === 'auto' ? ' via Silhouette maximization' : ''}).`, 'success');
     } catch (err) {
       showToast(err.message, 'error');
     } finally {
@@ -303,10 +305,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function updateKPIs(metrics) {
+  function updateKPIs(metrics, isAuto = false) {
     if (!metrics) return;
     kpiHouseholds.textContent = metrics.n_samples;
     kpiClusters.textContent = metrics.n_clusters;
+
+    const sub = document.getElementById('kpiClustersSub');
+    if (sub) {
+      sub.textContent = isAuto
+        ? `Max Silhouette Selection (k=${metrics.n_clusters})`
+        : `Manual Configuration (k=${metrics.n_clusters})`;
+    }
 
     if (metrics.silhouette_score !== null) {
       kpiSilhouette.textContent = metrics.silhouette_score.toFixed(3);
@@ -369,13 +378,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadElbowData() {
     try {
-      const res = await fetch('/api/elbow');
+      const res = await fetch('/api/evaluation_curve');
       const data = await res.json();
       if (res.ok) {
         window.dashboardCharts.renderElbow(data);
+        const chip = document.getElementById('optimalKChip');
+        if (chip && data.silhouettes && data.silhouettes.length > 0) {
+          const maxSil = Math.max(...data.silhouettes);
+          const optK = data.optimal_k || data.optimal_k_silhouette || 12;
+          chip.textContent = `Optimal k=${optK} (Max Silhouette = ${maxSil.toFixed(3)})`;
+        }
       }
     } catch (err) {
-      console.error('Elbow evaluation error:', err);
+      console.error('Curve evaluation error:', err);
     }
   }
 

@@ -8,7 +8,7 @@ import io
 import os
 import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Union, Optional
 import numpy as np
 import pandas as pd
 from flask import Blueprint, request, jsonify, send_file, current_app
@@ -27,6 +27,8 @@ from backend.config import (
     MAX_LAG,
     SERIES_HOURS,
     ACF_SIGNIFICANCE_THRESHOLD,
+    EVAL_K_MIN,
+    EVAL_K_MAX,
 )
 from backend.core.cleaner import WaterfallCleaner
 from backend.core.feature_extraction import (
@@ -34,7 +36,12 @@ from backend.core.feature_extraction import (
     extract_acf_details,
     batch_extract_acf,
 )
-from backend.core.clustering import SmartMeterClusterer, compute_elbow_curve
+from backend.core.clustering import (
+    SmartMeterClusterer,
+    compute_elbow_curve,
+    compute_clustering_evaluation_curve,
+    find_optimal_k_silhouette,
+)
 from backend.core.sample_generator import generate_london_sample_dataset
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -191,8 +198,8 @@ def upload_file():
         return jsonify({"error": str(e)}), 500
 
 
-def _do_clustering(k: int = DEFAULT_K, max_lag: int = MAX_LAG) -> Dict[str, Any]:
-    """Helper to execute ACF extraction and K-Means clustering."""
+def _do_clustering(k: Union[int, str] = "auto", max_lag: int = MAX_LAG) -> Dict[str, Any]:
+    """Helper to execute ACF extraction and K-Means clustering with Silhouette Score Maximization."""
     _ensure_active_dataset()
     if STATE["cleaned_df"] is None or len(STATE["cleaned_df"]) == 0:
         raise ValueError("No cleaned data available. Please upload or generate sample data first.")
@@ -213,7 +220,7 @@ def _do_clustering(k: int = DEFAULT_K, max_lag: int = MAX_LAG) -> Dict[str, Any]
     STATE["acf_feature_names"] = feature_names
     STATE["acf_df"] = features_df
 
-    # 2. K-Means clustering
+    # 2. K-Means clustering (supports integer k or 'auto' for Silhouette Score Maximization)
     clusterer = SmartMeterClusterer(n_clusters=k)
     results = clusterer.fit(
         features=features,
@@ -231,24 +238,34 @@ def run_clustering():
     """
     Runs the complete pipeline:
     1. Extracts 24-lag Pearson ACF with 95% CI thresholding (|r| > 1.96 / sqrt(N)).
-    2. Fits K-Means on the 24-dim/25-dim ACF feature space.
-    3. Computes inertia, silhouette score, Davies-Bouldin index, and cluster centroids.
-    4. Identifies exemplar households and behavioral profiles.
+    2. Calculates optimal k via Silhouette Score Maximization (or accepts user override).
+    3. Fits K-Means on the 24-dim/25-dim ACF feature space.
+    4. Computes inertia, silhouette score, Davies-Bouldin index, and cluster centroids.
+    5. Identifies exemplar households and behavioral profiles.
     """
     try:
         req = request.get_json(silent=True) or {}
-        k = int(req.get("k", DEFAULT_K))
+        k_param = req.get("k", "auto")
+        if k_param != "auto":
+            try:
+                k_val = int(k_param)
+            except (ValueError, TypeError):
+                k_val = "auto"
+        else:
+            k_val = "auto"
+
         max_lag = int(req.get("max_lag", MAX_LAG))
 
-        results = _do_clustering(k=k, max_lag=max_lag)
+        results = _do_clustering(k=k_val, max_lag=max_lag)
 
         return jsonify({
-            "message": "Clustering completed successfully.",
+            "message": "Clustering completed via Silhouette Score Maximization." if k_val == "auto" else "Clustering completed successfully.",
             "metrics": results["metrics"],
             "pca_variance_ratio": results["pca_variance_ratio"],
             "cluster_profiles": results["cluster_profiles"],
             "feature_names": STATE["acf_feature_names"],
             "significance_threshold_95ci": round(float(ACF_SIGNIFICANCE_THRESHOLD), 4),
+            "selection_method": "silhouette_score_maximization" if k_val == "auto" else "manual",
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -260,7 +277,7 @@ def get_clusters():
     try:
         _ensure_active_dataset()
         if STATE["cluster_results"] is None:
-            _do_clustering(k=DEFAULT_K)
+            _do_clustering(k="auto")
 
         if STATE["cluster_results"] is None:
             return jsonify({"error": "Clustering has not been run yet."}), 400
@@ -277,8 +294,9 @@ def get_clusters():
 
 
 @api_bp.route("/elbow", methods=["GET"])
+@api_bp.route("/evaluation_curve", methods=["GET"])
 def get_elbow():
-    """Computes inertia, silhouette, and Davies-Bouldin index across k in [2, 15]."""
+    """Computes inertia, silhouette, and Davies-Bouldin index across k in [2, 15] to optimize k via Silhouette Score Maximization."""
     try:
         _ensure_active_dataset()
         if STATE["acf_features"] is None:
@@ -293,8 +311,8 @@ def get_elbow():
             STATE["acf_features"] = features
 
         if STATE["elbow_results"] is None:
-            STATE["elbow_results"] = compute_elbow_curve(
-                STATE["acf_features"], k_min=2, k_max=15
+            STATE["elbow_results"] = compute_clustering_evaluation_curve(
+                STATE["acf_features"], k_min=EVAL_K_MIN, k_max=EVAL_K_MAX
             )
 
         return jsonify(STATE["elbow_results"])

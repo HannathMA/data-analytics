@@ -20,7 +20,7 @@ class SmartMeterClusterer:
 
     def __init__(
         self,
-        n_clusters: int = DEFAULT_K,
+        n_clusters: Union[int, str] = DEFAULT_K,
         random_state: int = RANDOM_STATE,
         max_iter: int = KMEANS_MAX_ITER,
         n_init: int = KMEANS_N_INIT,
@@ -70,7 +70,13 @@ class SmartMeterClusterer:
                 meter_ids = [f"meter_{i+1:04d}" for i in range(len(X))]
 
         n_samples, n_features = X.shape
-        k = min(self.n_clusters, n_samples)
+
+        # Resolve k: if 'auto', calculate optimal k via Silhouette Score Maximization
+        if self.n_clusters == "auto" or self.n_clusters is None:
+            best_k, _ = find_optimal_k_silhouette(X, random_state=self.random_state)
+            k = min(best_k, n_samples)
+        else:
+            k = min(int(self.n_clusters), n_samples)
         self.n_clusters = k
 
         # Fit K-Means
@@ -221,16 +227,31 @@ class SmartMeterClusterer:
             )
 
 
-def compute_elbow_curve(
+def find_optimal_k_silhouette(
+    features: Union[np.ndarray, pd.DataFrame],
+    k_min: int = 2,
+    k_max: int = 15,
+    random_state: int = RANDOM_STATE,
+) -> Tuple[int, float]:
+    """
+    Calculates the optimal number of clusters k by maximizing the Silhouette Score.
+    Replaces the subjective heuristic elbow method with an objective mathematical metric.
+    """
+    curve_data = compute_clustering_evaluation_curve(
+        features=features, k_min=k_min, k_max=k_max, random_state=random_state
+    )
+    return int(curve_data["optimal_k_silhouette"]), float(curve_data["max_silhouette"])
+
+
+def compute_clustering_evaluation_curve(
     features: Union[np.ndarray, pd.DataFrame],
     k_min: int = 2,
     k_max: int = 15,
     random_state: int = RANDOM_STATE,
 ) -> Dict[str, any]:
     """
-    Evaluates K-Means clustering across a range of k values
-    to produce the Elbow curve (Inertia), Silhouette score curve,
-    and Davies-Bouldin Index (DBI) curve.
+    Evaluates K-Means clustering across a range of k values to determine the optimal k
+    using Silhouette Score Maximization, alongside Davies-Bouldin Index (DBI) and Inertia.
     """
     if isinstance(features, pd.DataFrame):
         X = features.values
@@ -255,18 +276,26 @@ def compute_elbow_curve(
         silhouettes.append(round(float(sil), 4))
         dbis.append(round(float(dbi), 4))
 
-    # Identify optimal k via lowest DBI or highest Silhouette
-    best_dbi_idx = int(np.argmin(dbis))
-    optimal_k_dbi = k_values[best_dbi_idx]
-
+    # Optimal k determined via Silhouette Score Maximization
     best_sil_idx = int(np.argmax(silhouettes))
     optimal_k_sil = k_values[best_sil_idx]
+    max_sil_score = silhouettes[best_sil_idx]
+
+    best_dbi_idx = int(np.argmin(dbis))
+    optimal_k_dbi = k_values[best_dbi_idx]
 
     return {
         "k_range": k_values,
         "inertias": inertias,
         "silhouettes": silhouettes,
         "davies_bouldin": dbis,
-        "optimal_k_dbi": optimal_k_dbi,
+        "optimal_k": optimal_k_sil,  # Primary selection via Silhouette Score Maximization
         "optimal_k_silhouette": optimal_k_sil,
+        "max_silhouette": max_sil_score,
+        "optimal_k_dbi": optimal_k_dbi,
+        "selection_method": "silhouette_score_maximization",
     }
+
+
+# Backwards compatibility alias
+compute_elbow_curve = compute_clustering_evaluation_curve

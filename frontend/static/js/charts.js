@@ -398,30 +398,25 @@ class DashboardCharts {
     const silhouettes = elbowData.silhouettes;
     const dbis = elbowData.davies_bouldin;
 
+    const maxSilVal = Math.max(...silhouettes);
+    const maxSilIdx = silhouettes.indexOf(maxSilVal);
+
     this.elbowChart = new Chart(ctx, {
       type: 'line',
       data: {
         labels: kRange.map(k => `k=${k}`),
         datasets: [
           {
-            label: 'Inertia (WCSS)',
-            data: inertias,
-            borderColor: theme.isLight ? '#0284c7' : '#06b6d4',
-            backgroundColor: theme.isLight ? '#0284c7' : '#06b6d4',
-            borderWidth: 2,
-            yAxisID: 'yInertia',
-            tension: 0.2,
-            pointRadius: 4
-          },
-          {
-            label: 'Silhouette Score',
+            label: 'Silhouette Score (Target Metric ★)',
             data: silhouettes,
             borderColor: theme.isLight ? '#059669' : '#10b981',
             backgroundColor: theme.isLight ? '#059669' : '#10b981',
-            borderWidth: 2,
+            borderWidth: 3,
             yAxisID: 'yMetrics',
-            tension: 0.2,
-            pointRadius: 4
+            tension: 0.25,
+            pointRadius: silhouettes.map((_, i) => i === maxSilIdx ? 8 : 4),
+            pointHoverRadius: silhouettes.map((_, i) => i === maxSilIdx ? 11 : 6),
+            pointBackgroundColor: silhouettes.map((_, i) => i === maxSilIdx ? '#10b981' : (theme.isLight ? '#059669' : '#10b981'))
           },
           {
             label: 'Davies-Bouldin Index (DBI)',
@@ -433,6 +428,16 @@ class DashboardCharts {
             borderDash: [4, 4],
             tension: 0.2,
             pointRadius: 4
+          },
+          {
+            label: 'Inertia (WCSS)',
+            data: inertias,
+            borderColor: theme.isLight ? '#64748b' : '#94a3b8',
+            backgroundColor: theme.isLight ? '#64748b' : '#94a3b8',
+            borderWidth: 1.5,
+            yAxisID: 'yInertia',
+            tension: 0.2,
+            pointRadius: 3
           }
         ]
       },
