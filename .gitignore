@@ -1,0 +1,25 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE & Editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary uploads and tests
+data/raw/uploads/*
+!data/raw/uploads/.gitkeep
+data/processed/cleaned_test_*.csv
+
+# OS generated files
+.DS_Store
+Thumbs.db
