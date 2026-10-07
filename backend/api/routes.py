@@ -165,9 +165,12 @@ def upload_file():
             df, meter_id_col=meter_id_col, has_two_weeks=has_two_weeks
         )
 
-        # Save cleaned data
-        processed_path = DATA_PROCESSED_DIR / f"cleaned_{filename}"
-        cleaned_df.to_csv(processed_path, index_label="meter_id")
+        # Save cleaned data if filesystem is writable
+        try:
+            processed_path = DATA_PROCESSED_DIR / f"cleaned_{filename}"
+            cleaned_df.to_csv(processed_path, index_label="meter_id")
+        except OSError:
+            pass
 
         STATE["raw_df"] = df
         STATE["cleaned_df"] = cleaned_df

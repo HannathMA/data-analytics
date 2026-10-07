@@ -14,12 +14,21 @@ PROJECT_ROOT = BACKEND_DIR.parent
 DATA_DIR = PROJECT_ROOT / "data"
 DATA_RAW_DIR = DATA_DIR / "raw"
 DATA_PROCESSED_DIR = DATA_DIR / "processed"
-UPLOAD_DIR = DATA_RAW_DIR / "uploads"
 
-# Ensure data directories exist
-DATA_RAW_DIR.mkdir(parents=True, exist_ok=True)
-DATA_PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+# In serverless environments (like Vercel / AWS Lambda), the root filesystem is read-only.
+# We use /tmp for uploads while preserving bundled sample datasets in data/
+if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+    UPLOAD_DIR = Path("/tmp/uploads")
+else:
+    UPLOAD_DIR = DATA_RAW_DIR / "uploads"
+
+# Ensure directories exist safely
+try:
+    DATA_RAW_DIR.mkdir(parents=True, exist_ok=True)
+    DATA_PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+except OSError:
+    pass
 
 # Smart Meter Time Series Parameters
 SERIES_HOURS = 168  # 1 week = 7 days * 24 hours
